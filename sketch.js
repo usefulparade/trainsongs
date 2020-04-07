@@ -1,14 +1,23 @@
 var c;
 var canvParent;
+var frame;
+var font, displayText, buttonText, trackMin, trackSec, trackSecFixed, trackCurrentMin, trackCurrentSec, TrackCurrentSecFixed, timeText, currentSongFixed;
 var allSongs;
 var song; 
 var currentSong, nextSong;
 var manualSwitch;
 var fft, fft2, spectrum, logAvg, octBands;
-var trainSpeed, bassSpeed, bassdamp, midSpeed, midDamp, hiSpeed, hiDamp;
+var trainSpeed, bassSpeed, bassdamp, midSpeed, midDamp, hiSpeed, hiDamp, deltaDamp;
 var bassVertices, firstMountainVect, midVertices;
 var trees, stars;
 var dayColor, nightColor, bgColor, bgLerp, bgFFTNoise, day;
+
+var mouse, buttons, backbtn, fwdbtn, pausebtn, playbtn, nightbtn, speedupbtn, slowdownbtn, buttonOver;
+
+function preload(){
+  frame = loadImage('img/frame.png');
+  font = loadFont('fontB.ttf');
+}
 
 function setup() {
   c = createCanvas(1000, 600);
@@ -40,6 +49,8 @@ function setup() {
   hiSpeed = new p5.Vector(trainSpeed.x*hiDamp, 0);
   trees = [];
 
+  deltaDamp = 0.1;
+
   day = true;
   dayColor = color(255);
   nightColor = color(0);
@@ -50,6 +61,36 @@ function setup() {
   for (i=0;i<100;i++){
     stars[i] = new p5.Vector(random(0, width), random(0, height));
   }
+
+  image(frame, 0, 0);
+  textFont(font);
+  mouse = new p5.Vector(0, 0);
+  buttons = [];
+  backbtn = new MiniDiscButton(58, 485, 45, "back");
+  fwdbtn = new MiniDiscButton(111, 503, 45, "fwd");
+  pausebtn = new MiniDiscButton(39, 522, 45, "pause");
+  playbtn = new MiniDiscButton(89, 543, 45, "play");
+  nightbtn = new MiniDiscButton(36, 582, 45, "night");
+  speedupbtn = new MiniDiscButton(209, 502, 30, "spd up");
+  slowdownbtn = new MiniDiscButton(162, 584, 30, "spd dwn");
+  buttons.push(backbtn);
+  buttons.push(fwdbtn);
+  buttons.push(pausebtn);
+  buttons.push(playbtn);
+  buttons.push(nightbtn);
+  buttons.push(speedupbtn);
+  buttons.push(slowdownbtn);
+  buttonText = "";
+  buttonOver = false;
+
+  trackMin = (allSongs[currentSong].duration() / 60).toString().slice(0, 1);
+  trackSec = (allSongs[currentSong].duration() % 60).toString().slice(0, 2);
+  if (trackSec > 10){
+    trackSecFixed = trackSec;
+  } else {
+    trackSecFixed = "0" + trackSec.slice(0, 1);
+  }
+
 }
 
 function draw() {
@@ -64,16 +105,18 @@ function draw() {
   timeOfDay();
 
   allSongs[currentSong].onended(endSound);
-  
-  // allSongs[currentSong].onended(endSound);
 
-  push();
-    starScape();
-  pop();
+  if (bgLerp != 0){
+    push();
+      starScape();
+    pop();
+  }
 
-  push();
-    fourier();
-  pop();
+  if (bgLerp != 1){
+    push();
+      fourierClouds();
+    pop();
+  }
 
   push();
     bassMountains();
@@ -84,20 +127,32 @@ function draw() {
   pop();
 
   push();
-    translate(0, 10);
+    translate(0, 150);
     highTrees();
   pop();
+
+  image(frame, 0, 0, width, height);
+  push();
+    miniDiscText();
+  pop();
+
+  buttonsHandler();
+
+  mouse = new p5.Vector(mouseX, mouseY);
+  // console.log(mouse)
+
 }
 
-function fourier(){
+function fourierClouds(){
   
   fft2.smooth(0.995);
-  noStroke();
-  fill(0);
-  for (i = 0; i< spectrum.length; i++){
+  stroke(0);
+  strokeWeight(0.5);
+  for (i = 0; i< spectrum.length; i+=5){
     var y = map(i, 0, spectrum.length*0.3, 0, height);
     var w = map(spectrum[i], 0, 255, width, 0);
-    rect(0, y, w, 0.2);
+    // rect(0, y, w, 0.2);
+    line(0, y, w, y);
   }
 
   
@@ -105,6 +160,38 @@ function fourier(){
 
 
   
+}
+
+function miniDiscText(){
+
+  trackCurrentMin = (allSongs[currentSong].currentTime() / 60).toString().slice(0, 1);
+  trackCurrentSec = (allSongs[currentSong].currentTime() % 60).toString().slice(0, 2);
+  if (trackCurrentSec > 10){
+    trackCurrentSecFixed = trackCurrentSec;
+  } else {
+    trackCurrentSecFixed = "0" + trackCurrentSec.slice(0, 1);
+  }
+
+  if (currentSong < 10){
+    currentSongFixed = "0" + (currentSong+1);
+  } else {
+    currentSongFixed = (currentSong+1);
+  }
+
+  timeText = "" + trackCurrentMin + ":" + trackCurrentSecFixed + "/" + trackMin + ":" + trackSecFixed;
+  displayText = "tr " + currentSongFixed + "  " + timeText;
+  push();
+  translate(0, height-220);
+  rotate(0.3);
+  shearX(-0.25);
+  textSize(24);
+  fill(255)
+  stroke(0);
+    textAlign(LEFT);
+    text(displayText, 0, 0);
+    textAlign(RIGHT);
+    text(buttonText, 100, 25);
+  pop();
 }
 
 function timeOfDay(){
@@ -137,7 +224,7 @@ function starScape(){
 
 function bassMountains(){
   // BASS MOUNTAINS!!
-
+  bassSpeed = new p5.Vector(trainSpeed.x*bassDamp*deltaTime*deltaDamp, 0);
   if (fft.getEnergy("bass") > 100){
     bassVertices.push(new p5.Vector(width, height-(fft.getEnergy("bass")*1.5)));
   }
@@ -183,6 +270,7 @@ function bassMountains(){
 
 function craggyMids(){
   // CRAGGY MIDS!
+  midSpeed = new p5.Vector(trainSpeed.x*midDamp*deltaTime*deltaDamp, 0);
 
   if (fft.getEnergy("mid") > 20){
     midVertices.push(new p5.Vector(width, height-(fft.getEnergy("mid")*2)));
@@ -223,9 +311,16 @@ function craggyMids(){
 }
 
 function highTrees(){
+  hiSpeed = new p5.Vector(trainSpeed.x*hiDamp*deltaTime*deltaDamp, 0);
   // add trees
-  if (fft.getEnergy("treble") > 13){
-    trees.push(new Tree(width, height, 20, random(0, height*0.5)));
+  // if (fft.getEnergy("treble") > 13){
+  //   // trees.push(new Tree(width, height, 20, random(0, height*0.5)));
+  //   trees.push(new Tree(width, height, deltaDamp*10, fft.getEnergy("treble")*5));
+  // }
+
+  if (fft.getEnergy("treble") > 18){
+    // trees.push(new Tree(width, height, 20, random(0, height*0.5)));
+    trees.push(new Tree(width, height, deltaDamp*300, fft.getEnergy("treble")*10));
   }
 
   for (i=0;i<trees.length;i++){
@@ -237,7 +332,7 @@ function highTrees(){
 
     // remove trees
   }
-  if (trees.length > 0 || trees.length > 200){
+  if (trees.length > 0 || trees.length > 150){
     if (trees[0].pos.x < 0){
       trees.shift();
     }
@@ -245,13 +340,11 @@ function highTrees(){
 }
 
 function mousePressed(){
-  manualSwitch = true;
-
-  // if (mouseX > width*0.5){
-  //   songSwitchForward();
-  // } else {
-  //   songSwitchBackward();
-  // }
+  for (i=0;i<buttons.length;i++){
+    if (buttons[i].over){
+      buttons[i].do();
+    }
+  }
 
 }
 
@@ -324,6 +417,15 @@ function songSwitchBackward(){
 }
 
 function songLoaded(){
+
+  trackMin = (allSongs[nextSong].duration() / 60).toString().slice(0, 1);
+  trackSec = (allSongs[nextSong].duration() % 60).toString().slice(0, 2);
+  if (trackSec > 10){
+    trackSecFixed = trackSec;
+  } else {
+    trackSecFixed = "0" + trackSec.slice(0, 1);
+  }
+
   allSongs[nextSong].setLoop(false);
   allSongs[nextSong].playMode('restart');
   allSongs[nextSong].play();
@@ -342,6 +444,22 @@ function loadFailed(){
   // ellipse(width/2, height/2, 300);
 }
 
+function buttonsHandler(){
+  buttonOver = false;
+  for (i=0;i<buttons.length;i++){
+    buttons[i].show();
+
+    if (buttons[i].over == true){
+      buttonText = buttons[i].id;
+      buttonOver = true;
+    }
+  }
+
+  if (!buttonOver){
+    buttonText = "";
+  }
+}
+
 
 var Tree = function(x, y, w, h){
   this.pos = new p5.Vector(x, y);
@@ -351,10 +469,70 @@ var Tree = function(x, y, w, h){
     // noStroke();
     fill(200);
     stroke(200);
-    strokeWeight(10);
+    strokeWeight(deltaDamp*70);
     rectMode(CENTER);
     // translate(0, -100);
     // rect(this.pos.x, this.pos.y, this.size.x, this.size.y);
     line(this.pos.x, this.pos.y, this.pos.x, this.pos.y - this.size.y);
+  }
+}
+
+var MiniDiscButton = function(x, y, r, id){
+  this.pos = new p5.Vector(x, y);
+  this.r = r;
+  this.over = false;
+  this.distance = mouse.dist(this.pos);
+  this.id = id;
+
+  this.show = function(){
+    this.distance = mouse.dist(this.pos);
+    push();
+      // stroke(100);
+      // fill(200);
+      // ellipse(this.pos.x, this.pos.y, this.r);
+    pop();
+    // console.log(this.distance);
+    if (this.distance < this.r*0.5){
+      this.over = true;
+    } else {
+      this.over = false;
+    }
+  }
+
+  this.do = function(){
+    // songSwitchForward();
+    if (this.id == "play"){
+      allSongs[currentSong].rate(1);
+    } else if (this.id == "pause"){
+      allSongs[currentSong].rate(0.001);
+    } else if (this.id == "fwd"){
+      songSwitchForward();
+    } else if (this.id == "back"){
+      songSwitchBackward();
+    } else if (this.id == "spd up"){
+      if (deltaDamp <= 1){
+        deltaDamp += 0.05;
+      }
+      if (deltaDamp > 1){
+        deltaDamp = 1;
+      }
+    } else if (this.id == "spd dwn"){
+      if (deltaDamp > 0.1){
+        deltaDamp -= 0.05;
+      }
+      if (deltaDamp <= 0.1){
+        deltaDamp = 0.1;
+      }
+    } else if (this.id == "night"){
+      if (day && bgLerp == 0){
+        day = false;
+      } else if (!day && bgLerp == 1) {
+        day = true;
+      } else {
+
+      }
+    } else {
+
+    }
   }
 }
