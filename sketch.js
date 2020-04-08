@@ -14,12 +14,19 @@ var dayColor, nightColor, bgColor, bgLerp, bgFFTNoise, day;
 
 var mouse, buttons, backbtn, fwdbtn, pausebtn, playbtn, nightbtn, speedupbtn, slowdownbtn, buttonOver;
 
+var ticketPunchAlpha, ticket, ticketPunched, ticketText;
+
 function preload(){
   frame = loadImage('img/frame.png');
+  ticket = loadImage('img/ticket.png');
+  ticketPunched = loadImage('img/ticket-punched.png');
   font = loadFont('fontB.ttf');
 }
 
 function setup() {
+  var context = getAudioContext();
+  context.suspend();
+
   c = createCanvas(1000, 600);
   canvParent = document.getElementById("trainWindow");
   c.parent(canvParent);
@@ -28,9 +35,9 @@ function setup() {
   manualSwitch = false;
 
   allSongs = [];
-  allSongs[0] = new p5.SoundFile("songs/0.mp3", songLoaded, loadFailed, songLoading);
+  allSongs[0] = new p5.SoundFile("songs/0.mp3");
   allSongs[0].setLoop(false);
-  allSongs[0].playMode('restart');
+  // allSongs[0].playMode('restart');
   fft = new p5.FFT();
   fft2 = new p5.FFT();
 
@@ -91,6 +98,9 @@ function setup() {
     trackSecFixed = "0" + trackSec.slice(0, 1);
   }
 
+  ticketPunchAlpha = 255;
+  ticketText = "*kshht* please punch your ticket before we embark";
+
 }
 
 function draw() {
@@ -141,6 +151,8 @@ function draw() {
   mouse = new p5.Vector(mouseX, mouseY);
   // console.log(mouse)
 
+  audioContextCheck();
+
 }
 
 function fourierClouds(){
@@ -185,7 +197,7 @@ function miniDiscText(){
   rotate(0.3);
   shearX(-0.25);
   textSize(24);
-  fill(255)
+  fill(200)
   stroke(0);
     textAlign(LEFT);
     text(displayText, 0, 0);
@@ -345,6 +357,17 @@ function mousePressed(){
       buttons[i].do();
     }
   }
+  if (getAudioContext().state !== "running"){
+    userStartAudio();
+    ticket = ticketPunched;
+    ticketText = "thank you, and safe travels *kshht*";
+    if (allSongs[0].isLoaded()){
+      songLoaded();
+    } else {
+      allSongs[0] = new p5.SoundFile("songs/0.mp3", songLoaded);
+    }
+
+  }
 
 }
 
@@ -364,6 +387,7 @@ function keyPressed(){
     } else {
       day = true;
     }
+    // console.log(getAudioContext().state)
   }
 }
 
@@ -427,7 +451,7 @@ function songLoaded(){
   }
 
   allSongs[nextSong].setLoop(false);
-  allSongs[nextSong].playMode('restart');
+  // allSongs[nextSong].playMode('restart');
   allSongs[nextSong].play();
   currentSong = nextSong;
   manualSwitch = false;
@@ -534,5 +558,39 @@ var MiniDiscButton = function(x, y, r, id){
     } else {
 
     }
+  }
+}
+
+function audioContextCheck(){
+
+  if (getAudioContext().state == "running"){
+    if (ticketPunchAlpha > 0){
+      ticketPunchAlpha -= 2;
+    }
+  }
+
+  if (ticketPunchAlpha > 0){
+    push();
+      noStroke();
+      fill(0, 0, 0, ticketPunchAlpha);
+      rect(0, 0, width, height);
+    pop();
+    push();
+      noStroke();
+      textAlign(CENTER);
+      textSize(28);
+      fill(255, 255, 255, ticketPunchAlpha);
+      text(width/2, 2*(height/3));
+      text(ticketText, width/2, 2*(height/3)+30);
+    pop();
+
+
+    push();
+      angleMode(RADIANS);
+      translate(width/2, height/2 + (255-ticketPunchAlpha)*2)
+      rotate(1-(ticketPunchAlpha/255));
+      imageMode(CENTER);
+      image(ticket, 0, 0);
+    pop();
   }
 }
